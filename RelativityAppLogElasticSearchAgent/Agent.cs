@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
 
@@ -30,16 +31,120 @@ namespace RelativityAppLogElasticSearchAgent
             this.RaiseMessageNoLogging("Getting Instance Settings.", 10);
 
             // Get ES URI Instance Settings
+            List<Uri> elasticUris = new List<Uri>();
+            try
+            {
+                string[] uris = this.Helper.GetInstanceSettingBundle().GetString("Relativity.AppLogElasticSearch", "ElasticSearchUris").Split(';');
+                foreach (string uri in uris)
+                {
+                    if (Uri.IsWellFormedUriString(uri, UriKind.Absolute))
+                    {
+                        elasticUris.Add(new Uri(uri));
+                    }
+                    else
+                    {
+                        _logger.LogError("App Log Elastic Search, Agent ({agentArtifactId}), Instance Settings error (ElasticSearchUri), single URI error ({uri})", agentArtifactId.ToString(), uri);
+                        this.RaiseMessageNoLogging(string.Format("Instance Settings error (ElasticSearchUri), single URI error ({0}).", uri), 1);
+                        return;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "App Log Elastic Search, Agent ({agentArtifactId}), Instance Settings error (ElasticSearchUri)", agentArtifactId.ToString());
+                this.RaiseMessageNoLogging("Instance Settings error (ElasticSearchUri).", 1);
+                return;
+            }
 
             // Get ES authentication API Key Instance Settings
+            string[] elasticApiKey = new string[] { "", "" };
+            try
+            {
+                string apiKey = this.Helper.GetInstanceSettingBundle().GetString("Relativity.AppLogElasticSearch", "ElasticSearchApiKey");
+                if (apiKey.Length > 0)
+                {
+                    if (apiKey.Split(':').Length == 2)
+                    {
+                        elasticApiKey = apiKey.Split(':');
+                    }
+                    else
+                    {
+                        _logger.LogError("App Log Elastic Search, Agent ({agentArtifactId}), Instance Settings error (ElasticSearchApiKey), API Key format error ({apiKey})", agentArtifactId.ToString(), apiKey);
+                        this.RaiseMessageNoLogging(string.Format("Instance Settings error (ElasticSearchApiKey), API Key format error ({0}).", apiKey), 1);
+                        return;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "App Log Elastic Search, Agent ({agentArtifactId}), Instance Settings error (ElasticSearchApiKey)", agentArtifactId.ToString());
+                this.RaiseMessageNoLogging("Instance Settings error (ElasticSearchApiKey).", 1);
+                return;
+            }
 
             // Get ES index name Instance Settings (must by lowercase)
+            string elasticIndexName = "";
+            try
+            {
+                elasticIndexName = this.Helper.GetInstanceSettingBundle().GetString("Relativity.AppLogElasticSearch", "ElasticSearchIndexName").ToLower();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "App Log Elastic Search, Agent ({agentArtifactId}), Instance Settings error (ElasticSearchIndexName)", agentArtifactId.ToString());
+                this.RaiseMessageNoLogging("Instance Settings error (ElasticSearchIndexName).", 1);
+                return;
+            }
 
             // Get ES index number of replicas Instance Settings
+            int elasticIndexReplicas = 1;
+            try
+            {
+                elasticIndexReplicas = this.Helper.GetInstanceSettingBundle().GetInt("Relativity.AppLogElasticSearch", "ElasticSearchIndexReplicas").Value;
+                if (elasticIndexReplicas < 0)
+                {
+                    elasticIndexReplicas = 1;
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "App Log Elastic Search, Agent ({agentArtifactId}), Instance Settings error (ElasticSearchIndexReplicas)", agentArtifactId.ToString());
+                this.RaiseMessageNoLogging("Instance Settings error (ElasticSearchIndexReplicas).", 1);
+                return;
+            }
 
             // Get ES index number of shards Instance Settings
+            int elasticIndexShards = 1;
+            try
+            {
+                elasticIndexShards = this.Helper.GetInstanceSettingBundle().GetInt("Relativity.AppLogElasticSearch", "ElasticSearchIndexShards").Value;
+                if (elasticIndexShards < 0)
+                {
+                    elasticIndexShards = 1;
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "App Log Elastic Search, Agent ({agentArtifactId}), Instance Settings error (ElasticSearchIndexShards)", agentArtifactId.ToString());
+                this.RaiseMessageNoLogging("Instance Settings error (ElasticSearchIndexShards).", 1);
+                return;
+            }
 
             // Get ES synchronization threshold for one agent run
+            int elasticSyncSize = 1000;
+            try
+            {
+                elasticSyncSize = this.Helper.GetInstanceSettingBundle().GetInt("Relativity.AppLogElasticSearch", "ElasticSearchSyncSize").Value;
+                if (elasticSyncSize < 1000)
+                {
+                    elasticSyncSize = 1000;
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "App Log Elastic Search, Agent ({agentArtifactId}), Instance Settings error (ElasticSearchSyncSize)", agentArtifactId.ToString());
+                this.RaiseMessageNoLogging("Instance Settings error (ElasticSearchSyncSize).", 1);
+                return;
+            }
 
             // Construct connector to ES cluster
             Nest.ElasticClient elasticClient = null;
